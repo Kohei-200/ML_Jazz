@@ -1,5 +1,5 @@
-# Ignore heavy databases and tensors
-data/wjazzd/
+
+data/wjazzd.db
 data/processed/
 *.ipynb
 *.md
