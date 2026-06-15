@@ -1,4 +1,10 @@
+# Ignore heavy databases and tensors
 data/wjazzd/
 data/processed/
+*.ipynb
+*.md
+
+# Ignore Colab and Google Drive junk
+Progress.gsheet
 .config/
 sample_data/
