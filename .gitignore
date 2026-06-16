@@ -1,6 +1,7 @@
 
 data/wjazzd.db
 data/processed/
+tokenizer/__pycache__/
 *.ipynb
 *.md
 
