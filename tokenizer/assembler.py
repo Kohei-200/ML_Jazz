@@ -162,17 +162,21 @@ def assemble(token_seq, bar_headers, beat_headers):
     beat_header = []
     current_bar = -1
     current_beat = -1
+    BAR_TK = SPECIAL_TOKENS["BAR"]
+    BEAT_TK = SPECIAL_TOKENS["BEAT"]
+    NOTE_TK = SPECIAL_TOKENS["NOTE"]
     for note in token_seq:
         bar_num = note["bar"]
         beat_num = note["beat"]
         if bar_num != current_bar:
-            seq.extend(bar_headers[bar_num])
+            seq.extend([BAR_TK] + bar_headers[bar_num])
         current_bar = bar_num
         if beat_num != current_beat:
-            seq.extend(beat_headers[(bar_num, beat_num)])
+            seq.extend([BEAT_TK] + beat_headers[(bar_num, beat_num)])
         current_beat = beat_num
 
         note_tuple =[
+            NOTE_TK,
             note["beatpos"],
             note["swing"],
             note["duration"],

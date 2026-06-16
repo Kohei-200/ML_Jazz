@@ -126,5 +126,8 @@ PHRASEROLE_VOCAB = {
 SPECIAL_TOKENS = {
     "PAD": 1000,
     "SOLO_END": 1001,
-    "END": 1002  # before padding
+    "END": 1002,  # before padding
+    "BAR": 1101,
+    "BEAT": 1102,
+    "NOTE": 1103
 }
