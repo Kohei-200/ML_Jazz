@@ -7,8 +7,9 @@ from noteshape import *
 from tension_tagger import *
 from wjazzd_query import *
 
-def build_bar_header(bar_row, chorus_tags):
 
+def build_beat_header(bar_row):
+    beat_num = bar_row["beat"]
     chord_tokens = parse_chord(bar_row["chord"])   # → 7 strings
     chord_ids = [
         ROOT_VOCAB[chord_tokens[0]],
@@ -19,6 +20,10 @@ def build_bar_header(bar_row, chorus_tags):
         TEN11_VOCAB[chord_tokens[5]],
         TEN13_VOCAB[chord_tokens[6]]
     ]
+    return [beat_num] + chord_ids
+
+def build_bar_header(bar_row, chorus_tags):
+
     instrument = INSTRUMENT_VOCAB[bar_row["instrument"]]
     tempo_id      = TEMPO_VOCAB.get(bar_row["tempoclass"], 5) # USED for stratify
     section_id    = SECTION_VOCAB.get(bar_row["form"], 4)
@@ -26,7 +31,7 @@ def build_bar_header(bar_row, chorus_tags):
     chorus_label = chorus_tags.get(bar_row["chorus_id"], "UNKNOWN")  # EARLY/MID/PEAK/LATE classification
     chorus_id    = CHORUS_VOCAB.get(chorus_label, 4)
 
-    return chord_ids + [tempo_id, section_id, chorus_id, instrument]
+    return [tempo_id, section_id, chorus_id, instrument]
 
 def chord_carry_forward(notes):
     notes = notes.copy()
@@ -120,6 +125,7 @@ def build_note_tuple(row, vel_bins):
     if row["is_rest"]:
         return {
             "bar":        int(row["bar"]),
+            "beat":       int(row["beat"]),
             "beatpos":    compute_beatpos(row["beat"], row["beat_onset"],
                                         row["beat_onset"], row["beat_duration"]),
             "swing":      row["swing_ratio"],
@@ -136,6 +142,7 @@ def build_note_tuple(row, vel_bins):
 
     return {
         "bar":        int(row["bar"]),
+        "beat":       int(row["beat"]),
         "beatpos":    compute_beatpos(row["beat"], row["note_onset"],
                                     row["beat_onset"], row["beat_duration"]),
         "swing":      row["swing_ratio"],
@@ -150,28 +157,34 @@ def build_note_tuple(row, vel_bins):
         "is_rest":    False
     }
 
-def assemble(token_seq, bar_headers):
+def assemble(token_seq, bar_headers, beat_headers):
     seq = []
+    beat_header = []
     current_bar = -1
+    current_beat = -1
     for note in token_seq:
         bar_num = note["bar"]
+        beat_num = note["beat"]
         if bar_num != current_bar:
             seq.extend(bar_headers[bar_num])
         current_bar = bar_num
+        if beat_num != current_beat:
+            seq.extend(beat_headers[(bar_num, beat_num)])
+        current_beat = beat_num
 
-    note_tuple =[
-        note["beatpos"],
-        note["swing"],
-        note["duration"],
-        note["pitch"],
-        note["interval"],
-        note["octave"],
-        note["tension"],
-        note["phrase_role"],
-        note["vel"],
-        note["noteshape"]
-    ]
-    seq.extend(note_tuple)
+        note_tuple =[
+            note["beatpos"],
+            note["swing"],
+            note["duration"],
+            note["pitch"],
+            note["interval"],
+            note["octave"],
+            note["tension"],
+            note["phrase_role"],
+            note["vel"],
+            note["noteshape"]
+        ]
+        seq.extend(note_tuple)
     return seq
 
 def process_and_save_corpus(conn, output_dir):
@@ -201,7 +214,11 @@ def process_and_save_corpus(conn, output_dir):
             for bar_num, bar_group in merged.groupby("bar"):
                 bar_row = bar_group.iloc[0]
                 bar_headers[bar_num] = build_bar_header(bar_row, chorus_tags)
-
+            
+            beat_headers = {}
+            for (bar_num, beat_num), beat_group in merged.groupby(["bar", "beat"]):
+                beat_row = beat_group.iloc[0]
+                beat_headers[(bar_num, beat_num)] = build_beat_header(beat_row)
 
             ####### NOTE INFO #########
             merged["interval"] = merged.apply(
@@ -218,7 +235,7 @@ def process_and_save_corpus(conn, output_dir):
                 lambda r: TENSION_VOCAB["REST"] if r["is_rest"]
                 else compute_tension_role(
                     r["interval"],
-                    bar_headers[r["bar"]],
+                    beat_headers[(r["bar"], r["beat"])],
                     r["next_interval"]
                 ),
                 axis = 1
@@ -232,7 +249,7 @@ def process_and_save_corpus(conn, output_dir):
                 token_seq.append(note)
         # [bar, beatpos, swing, duration, pitch, interval, octave, tension, phrase_role, vel, noteshape, is_rest]
 
-            seq_1D  = assemble(token_seq, bar_headers)
+            seq_1D  = assemble(token_seq, bar_headers, beat_headers)
             seq_1D.append(SPECIAL_TOKENS["SOLO_END"])
 
             seq_tensor = torch.tensor(seq_1D, dtype = torch.long)
