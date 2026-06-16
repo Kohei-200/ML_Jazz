@@ -232,8 +232,8 @@ def process_and_save_corpus(conn, output_dir):
             axis=1
             )
             merged["next_interval"] = merged["interval"].shift(-1).fillna(-1).astype(int)
-            merged.loc[merged["is_rest"], "interval"]      = -1
-            merged.loc[merged["is_rest"], "next_interval"] = -1
+            merged.loc[merged["is_rest"], "interval"]      = 13
+            merged.loc[merged["is_rest"], "next_interval"] = 13
 
             merged["tension_role"] = merged.apply(
                 lambda r: TENSION_VOCAB["REST"] if r["is_rest"]
