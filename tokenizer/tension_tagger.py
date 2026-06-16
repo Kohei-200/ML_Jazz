@@ -38,7 +38,7 @@ def get_alterations(bar_header):
     return {alt_map[bar_header[3]]} if bar_header[3] in alt_map else set()
 
 def compute_tension_role(interval, bar_header, next_interval):
-    if interval == -1:
+    if interval == 13:
         return TENSION_VOCAB["REST"]
     if interval == 12:
         return TENSION_VOCAB["UNKNOWN"]
@@ -57,7 +57,7 @@ def compute_tension_role(interval, bar_header, next_interval):
         return TENSION_VOCAB["ALTERATION"]
 
     # APPROACH — semitone from a chord tone, resolves to chord tone on next note
-    if next_interval not in (-1, 12): # requires one-row look-ahead
+    if next_interval not in (12, 13): # requires one-row look-ahead
         semitone_away = abs(interval - next_interval) == 1 or \
                         abs(interval - next_interval) == 11  # wrap-around (e.g. 11→0)
         if semitone_away and next_interval in chord_tones:
