@@ -226,7 +226,7 @@ def process_and_save_corpus(conn, output_dir):
 
             ####### NOTE INFO #########
             merged["interval"] = merged.apply(
-            lambda r: -1 if r["is_rest"] else compute_interval(
+            lambda r: 13 if r["is_rest"] else compute_interval(
                 r["pitch"],
                 bar_headers[r["bar"]]),
             axis=1
