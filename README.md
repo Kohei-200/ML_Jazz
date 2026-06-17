@@ -45,7 +45,7 @@ tokeniser/
 ```
 [BAR] [4 tuple]
     [BEAT] [8 tuple]
-        [NOTE] [11 tuple]
+        [NOTE] [10 tuple]
         [NOTE] [...]
         [NOTE] [...]
     [BEAT] [...]
