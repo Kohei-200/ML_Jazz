@@ -30,7 +30,7 @@ class JazzLanguageModel(nn.Module):
                     slot_idx = 12
                 continue
             elif slot_idx in [3, 11, 21]: # instrument, ten13, or noteshape
-                logits.append(self.out_head[22](x[22]))
+                logits.append(self.out_head[22](x[i]))
                 slot_idx += 1
             else:
                 logits.append(self.out_head[slot_idx](x[i]))
