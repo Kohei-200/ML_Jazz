@@ -212,6 +212,8 @@ def process_and_save_corpus(conn, output_dir):
             chorus_tags = classify_chorus(merged)
             vel_bins = compute_velocity_bins(merged)   # once per solo
             merged = compute_swing_prepass(merged)
+            if max(merged["beat"].unique()) in [3, 5]:
+                continue
 
             ####### BAR INFO #########
             bar_headers = {}
