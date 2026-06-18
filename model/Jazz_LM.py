@@ -1,7 +1,7 @@
 from torch import nn
 
-from embeddings import MyModule
-from decoder import DecoderLayer
+from .embeddings import MyModule
+from .decoder import DecoderLayer
 
 class JazzLanguageModel(nn.Module):
     def __init__(self, vocabsize_table, special_tk_size,
