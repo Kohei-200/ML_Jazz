@@ -1,22 +1,24 @@
 import math
 from torch import nn
 import torch 
-
-def get_slopes(n):
-    return [1 / (2 ** (i + 1)) for i in range(n)]
     
-def build_alibi_tensor(max_len, n_heads): 
+def get_alibi_slopes(n_heads): 
     """
     return tnsor shape(1, n_heads, max_len, max_len)
     """
-    slopes = torch.tenseor(get_slopes(n_heads)).view(1, n_heads, 1, 1)
-    context_pos = torch.arange(max_len)[:, None]
-    memory_pos = torch.arange(max_len)[None, :]
 
-    relative_distance = memory_pos - context_pos
-    relative_distance = relative_distance.unsqueeze(0).unsqueeze(0)
-    alibi_bias = slopes + relative_distance
-    return alibi_bias
+    def get_slopes(n):
+        start = 2 * (-8 / n)
+        return [start ** (i + 1) for i in range(n)]
+    
+    if math.log2(n_heads).is_integer():
+        return get_slopes(n_heads)
+    
+    closest_pow2 = 2 ** math.floor(math.log2(n_heads))
+    base = get_slopes(closest_pow2)
+    extra = get_slopes(2 * closest_pow2)[0::2]
+    return (base + extra)[:n_heads]
+
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, n_heads: int):
@@ -29,50 +31,45 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
 
-    def forward(self, x, alibi_bias = None, pad_mask = None):
-        B, seq_len, _ = x.shape
-        seq_len = x.shape[0]
-        d_head = self.d_model//self.n_heads
-        # q = self.W_q(x).view([seq_len, self.n_heads,
-        #                     d_head]) # per head dim
-        # q = q.transpose(0, 1) # (n_heads: batch-like, seq_len, d_head)
+        slopes = torch.tensor(get_alibi_slopes(n_heads), dtype = torch.float32)
+        self.register_buffer("alibi_slopes", slopes, persistent = False)
 
-        # k = self.W_k(x).view([seq_len, self.n_heads,
-        #                     d_head]) # per head dim
-        # k = k.transpose(0, 1)
+    def forward(self, x, pad_mask = None):
+        Bs, seq_len, _ = x.shape
+        d_head = self.d_model // self.n_heads
 
-        # v = self.W_v(x).view([seq_len, self.n_heads,
-        #                     d_head]) # per head dim
-        # v = v.transpose(0, 1)
+        def split_heads(t):
+            return t.view(Bs, seq_len, self.n_heads, d_head).transpose(1, 2)
 
-        q = self.W_q(x).view(B, seq_len, self.n_heads, self.d_k).transpose(1, 2)
-        k = self.W_k(x).view(B, seq_len, self.n_heads, self.d_k).transpose(1, 2)
-        v = self.W_v(x).view(B, seq_len, self.n_heads, self.d_k).transpose(1, 2)
+        q = split_heads(self.W_q(x))
+        k = split_heads(self.W_k(x))
+        v = split_heads(self.W_v(x))
 
-        # scores = q @ k.transpose(-2, -1) # (n_heads, seq_len, seq_len)
-        # scores = scores / (d_head ** 0.5)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
+        scores = q @ k.transpose(-2, -1)  # (Bs, n_heads, seq, seq)
+        scores = scores / (d_head ** 0.5)
 
-        if alibi_bias is not None:
-            scores = scores + alibi_bias
         # Causal masked scores
-        mask = torch.tril(torch.ones(seq_len, seq_len, device=scores.device))
-        mask = mask.view(1, 1, seq_len, seq_len)
-        scores = scores.masked_fill(mask.unsqueeze(0) == 0, float("-inf"))
+        # ALiBi: bias[i, j] = slope_h * (j - i), <= 0 for j <= i, so keys
+        positions = torch.arange(seq_len, device = x.device)
+        relative_pos = positions.view(1, -1) - positions.view(-1, 1) # (seq, seq): j - i
+        alibi_bias = self.alibi_slopes.view(self.n_heads, 1, 1) * relative_pos.unsqueeze(0)
+        scores = scores + alibi_bias.unsqueeze(0)
 
-        if pad_mask is not None:
-            scores = scores.masked_fill(pad_mask == True, float("-inf"))
+        mask = torch.tril(torch.ones(seq_len, seq_len, 
+                                    device=scores.device, dtype = torch.bool))
 
-        attention = torch.softmax(scores, dim = -1)
-        output = torch.matmul(attention, v)
-        output = output.transpose(1, 2).contiguous().view(B, seq_len, self.d_model)
-        # softmax on j's every i
-        # weights = torch.softmax(scores, dim = -1)
+        causal_mask = mask.view(1, 1, seq_len, seq_len)
 
-        # Final Attention (softmax) @ V
-        # output = weights @ v # (n_heads, seq_len, d_head)
-        # output = output.transpose(0, 1) # original shape
-        # output = output.contiguous().view(seq_len, self.d_model) # (seq_len, d_model)
+        if pad_mask is not None: # prevent leakage
+            key_invalid = pad_mask.view(Bs, 1, 1, seq_len)
+            causal_mask = causal_mask & ~key_invalid
+
+        scores = scores.masked_fill(~causal_mask, float("-inf"))
+
+        weights = torch.softmax(scores, dim = -1)
+        weights = torch.nan_to_num(weights, nan = 0.0)
+        output = weights @ v  # (B, n_heads, T, d_head)
+        output = output.transpose(1, 2).contiguous().view(Bs, seq_len, self.d_model)
         output = self.W_o(output)
 
         return output
@@ -100,8 +97,8 @@ class DecoderLayer(nn.Module):
         self.multi_head = MultiHeadAttention(d_model, n_heads)
         self.ff = FeedForward(d_model)
 
-    def forward(self, x):
-        x = x + self.multi_head(x)
+    def forward(self, x, pad_mask = None):
+        x = x + self.multi_head(x, pad_mask = pad_mask)
         x = x + self.ff(x)
 
         return x

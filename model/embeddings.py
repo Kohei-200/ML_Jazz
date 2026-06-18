@@ -11,20 +11,20 @@ class MyModule(nn.Module):
             [nn.Embedding(size, d_model) for size in vocabsize_table]
         )
         self.special_embeddings = nn.Embedding(special_tk_size, d_model)
-
-    def forward(self, x):
+    
+    def _emb_one(self, x):
         embeddings = []
         slot_idx = 0
+
         for tok in x:
             if tok.item() in [1000, 1001, 1002]:
-                tok = torch.zeros(self.d_model)
-                embeddings.append(tok)
+                tok_vec = torch.zeros(self.d_model, device = x.device)
+                embeddings.append(tok_vec)
                 slot_idx = 0
             elif tok.item() in [1101, 1102, 1103]:
                 token_val = tok.item()
-                idx_val = torch.tensor(SPECIAL_TOKEN_IDX[token_val])
-                tok = self.special_embeddings(idx_val.unsqueeze(0)).squeeze(0) # shape: (d_model, )
-                embeddings.append(tok)
+                idx_val = torch.tensor(SPECIAL_TOKEN_IDX[token_val], device = x.device)
+                tok_vec = self.special_embeddings(idx_val.unsqueeze(0)).squeeze(0)  # (d_model,)
 
                 if token_val == 1101:
                     slot_idx = 0
@@ -33,9 +33,16 @@ class MyModule(nn.Module):
                 elif token_val == 1103:
                     slot_idx = 12
             else:
-                # print(slot_idx, tok.item())
-                tok = self.slot_embeddings[slot_idx](tok.unsqueeze(0))
-                embeddings.append(tok)
+                tok_vec = self.slot_embeddings[slot_idx](tok.unsqueeze(0))
+                embeddings.append(tok_vec)
                 slot_idx += 1
-        embeddings = [e.squeeze() for e in embeddings]
-        return torch.stack(embeddings) # 2D tensor
+        embeddings = [emb.squeeze() for emb in embeddings]
+        return torch.stack(embeddings) # seq_len, d_model
+
+    def forward(self, x):
+        if x.dim == 1:
+            return self._emb_one(x)
+        
+        return torch.stack(
+            [self._emb_one(row) for row in x]
+        ) # 2D tensor

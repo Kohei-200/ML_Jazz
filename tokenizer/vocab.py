@@ -185,3 +185,36 @@ def get_vocab_sizes():
     
     special_tk_size = len(SPECIAL_TOKENS)
     return vocabsize_table, special_tk_size
+
+BAR = SPECIAL_TOKENS["BAR"]
+BEAT = SPECIAL_TOKENS["BEAT"]
+NOTE = SPECIAL_TOKENS["NOTE"]
+SOLO_END = SPECIAL_TOKENS["SOLO_END"]
+
+NOTESHAPE_SLOT = 21      # last slot in a [NOTE] group -- the genuine branch point
+DECISION_HEAD = 22       # index of the extra 4-way head in JazzLanguageModel.out_head
+
+NEXT_GROUP_CLASS = {NOTE: 0, BEAT: 1, BAR: 2, SOLO_END: 3}
+
+def get_prediction_events(tokens):
+    events = []
+    slot_idx = 0
+    n = len(tokens)
+    for i in range(n):
+        token_val = tokens[i].item()
+        if token_val >= 1000:
+            if token_val == BAR:
+                slot_idx = 0
+            elif token_val == BEAT:
+                slot_idx = 4
+            elif token_val == NOTE:
+                slot_idx = 12
+            continue
+        
+        events.append((i -1, slot_idx, token_val))
+
+        if slot_idx == NOTESHAPE_SLOT:
+            next_val = tokens[i + 1].item()
+            events.append((i, DECISION_HEAD, NEXT_GROUP_CLASS[next_val]))
+        slot_idx += 1
+    return events
