@@ -25,7 +25,7 @@ class MyModule(nn.Module):
                 token_val = tok.item()
                 idx_val = torch.tensor(SPECIAL_TOKEN_IDX[token_val], device = x.device)
                 tok_vec = self.special_embeddings(idx_val.unsqueeze(0)).squeeze(0)  # (d_model,)
-
+                embeddings.append(tok_vec)
                 if token_val == 1101:
                     slot_idx = 0
                 elif token_val == 1102:
@@ -40,7 +40,7 @@ class MyModule(nn.Module):
         return torch.stack(embeddings) # seq_len, d_model
 
     def forward(self, x):
-        if x.dim == 1:
+        if x.dim() == 1:
             return self._emb_one(x)
         
         return torch.stack(
