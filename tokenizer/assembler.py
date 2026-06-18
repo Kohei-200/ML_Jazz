@@ -1,11 +1,11 @@
 import torch, os
-from vocab import *
-from beat_aligner import *
-from chord_parser import *
-from chorus_tagger import *
-from noteshape import *
-from tension_tagger import *
-from wjazzd_query import *
+from .vocab import *
+from .beat_aligner import *
+from .chord_parser import *
+from .chorus_tagger import *
+from .noteshape import *
+from .tension_tagger import *
+from .wjazzd_query import *
 
 
 def build_beat_header(bar_row):
