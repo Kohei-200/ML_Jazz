@@ -61,3 +61,7 @@ For now, sequence that Bar header contains almost never changes during on a same
 
 ## Architecture Decision log
 ### Autoregressive, Decoder-only architecture
+
+### Proof of Concept
+#### Overfit on a single solo
+Test if the model (with ALiBi, batched forward, padded mask support, and the grouped-slot loss) drives the loss to close to 0 on a single solo.
