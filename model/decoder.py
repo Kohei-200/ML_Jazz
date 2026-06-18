@@ -94,11 +94,13 @@ class DecoderLayer(nn.Module):
     def __init__(self, d_model, n_heads):
         super().__init__()
         self.d_model = d_model
+        self.norm1 = nn.LayerNorm(d_model)
         self.multi_head = MultiHeadAttention(d_model, n_heads)
+        self.norm2 = nn.LayerNorm(d_model)
         self.ff = FeedForward(d_model)
 
     def forward(self, x, pad_mask = None):
-        x = x + self.multi_head(x, pad_mask = pad_mask)
-        x = x + self.ff(x)
+        x = x + self.multi_head(self.norm1(x), pad_mask = pad_mask)
+        x = x + self.ff(self.norm2(x))
 
         return x
