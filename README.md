@@ -65,3 +65,4 @@ For now, sequence that Bar header contains almost never changes during on a same
 ### Proof of Concept
 #### Overfit on a single solo
 Before moving on to the real multi-solo training, test if the model (with ALiBi, batched forward, padded mask support, and the grouped-slot loss) drives the loss to close to 0 on a single solo.
+#### Loss
