@@ -45,7 +45,7 @@ def collate_fn(batch):
             targets[b, predictor_pos] = target_id
             slot_ids[b, predictor_pos] = slot_id
 
-        pad_mask = inputs == PAD_ID
+    pad_mask = inputs == PAD_ID
 
-        return inputs, targets, slot_ids, pad_mask
+    return inputs, targets, slot_ids, pad_mask
 
